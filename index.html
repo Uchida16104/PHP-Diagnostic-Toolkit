@@ -1,0 +1,946 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <meta name="description" content="A lightweight browser-based workspace for documenting and investigating PHP issues. It does not execute or lint PHP.">
+  <title>PHP Diagnostic Toolkit</title>
+
+  <!-- Pinned CDN dependencies. Use a local, reviewed copy for production deployments. -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/easemotion-css@1.1.0/easemotion.min.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css">
+  <link rel="stylesheet" href="https://pyscript.net/releases/2026.7.3/core.css">
+  <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.3.3"></script>
+  <script type="module" src="https://pyscript.net/releases/2026.7.3/core.js"></script>
+
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f4f6fa;
+      --surface: #ffffff;
+      --surface-muted: #f8faff;
+      --text: #162033;
+      --muted: #68758b;
+      --line: #dfe5ef;
+      --accent: #4d5fe9;
+      --accent-strong: #3547ce;
+      --accent-soft: #eef0ff;
+      --teal: #087f8c;
+      --green: #17835d;
+      --amber: #9a5b00;
+      --red: #b43d4a;
+      --shadow: 0 18px 48px rgba(29, 43, 78, .075);
+      --radius: 20px;
+    }
+    html[data-theme="dark"] {
+      color-scheme: dark;
+      --bg: #101522;
+      --surface: #171e2d;
+      --surface-muted: #1c2536;
+      --text: #edf2fb;
+      --muted: #a8b4ca;
+      --line: #303b50;
+      --accent: #9aa5ff;
+      --accent-strong: #bbc2ff;
+      --accent-soft: #292e4d;
+      --teal: #65d9e1;
+      --green: #68d7ac;
+      --amber: #ffc66d;
+      --red: #ff9ba5;
+      --shadow: 0 18px 48px rgba(0, 0, 0, .22);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(ellipse at 10% 0%, rgba(100, 117, 255, .10), transparent 34rem),
+        var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.55;
+      transition: background-color .2s ease, color .2s ease;
+    }
+    a { color: var(--accent); }
+    code, pre, textarea.code-area, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
+    .app-shell { width: min(1180px, calc(100% - 32px)); margin: 0 auto; }
+    .topbar { display:flex; align-items:center; justify-content:space-between; gap:1rem; padding: 22px 0; }
+    .brand { display:flex; align-items:center; gap:.8rem; color:var(--text); text-decoration:none; font-weight:800; letter-spacing:-.03em; }
+    .brand-mark { display:grid; place-items:center; width:42px; height:42px; border-radius:14px; color:white; background:linear-gradient(135deg,#6675ff,#3747c9); box-shadow:0 8px 22px rgba(77,95,233,.25); }
+    .brand-mark svg { width:23px; height:23px; }
+    .top-actions { display:flex; align-items:center; gap:.55rem; }
+    .top-link { text-decoration:none; color:var(--muted); padding:.5rem .7rem; border-radius:10px; font-size:.9rem; }
+    .top-link:hover { background:var(--surface); color:var(--text); }
+    .btn-tool, .btn-secondary-tool, .btn-quiet {
+      border:1px solid transparent; border-radius:11px; font-weight:700; cursor:pointer; padding:.72rem .95rem;
+      transition:transform .15s ease, background .15s ease, border-color .15s ease; font-size:.9rem;
+    }
+    .btn-tool { color:white; background:#4d5fe9; }
+    .btn-tool:hover { background:#3547ce; transform:translateY(-1px); }
+    .btn-secondary-tool { background:var(--surface); border-color:var(--line); color:var(--text); }
+    .btn-secondary-tool:hover, .btn-quiet:hover { border-color:var(--accent); }
+    .btn-quiet { background:transparent; color:var(--muted); border-color:var(--line); }
+    button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible { outline:3px solid rgba(99,115,255,.45); outline-offset:2px; }
+    .hero { padding: 38px 0 28px; display:grid; grid-template-columns:minmax(0,1.4fr) minmax(250px,.6fr); gap:2rem; align-items:center; }
+    .eyebrow { display:inline-flex; align-items:center; gap:.45rem; text-transform:uppercase; letter-spacing:.11em; color:var(--accent); font-size:.73rem; font-weight:800; }
+    .status-dot { width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 0 4px rgba(23,131,93,.12); }
+    h1 { font-size:clamp(2rem,4.5vw,3.7rem); line-height:1.04; letter-spacing:-.055em; max-width:760px; margin:.85rem 0 1rem; font-weight:850; }
+    .hero p { color:var(--muted); max-width:720px; font-size:1.05rem; margin:0; }
+    .hero-card { padding:1.25rem; background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); position:relative; overflow:hidden; }
+    .hero-card:before { content:""; position:absolute; width:145px; height:145px; border-radius:50%; right:-48px; top:-52px; background:var(--accent-soft); }
+    .hero-card > * { position:relative; }
+    .hero-card .mini-label { font-size:.76rem; color:var(--muted); font-weight:800; text-transform:uppercase; letter-spacing:.09em; }
+    .hero-card strong { display:block; font-size:1.45rem; letter-spacing:-.04em; margin:.25rem 0; }
+    .hero-card p { font-size:.88rem; }
+    .hero-metrics { display:grid; grid-template-columns:repeat(3,1fr); gap:.6rem; margin-top:1rem; }
+    .metric { padding:.7rem; border-radius:12px; background:var(--surface-muted); border:1px solid var(--line); }
+    .metric b { display:block; font-size:1rem; }
+    .metric span { display:block; font-size:.7rem; color:var(--muted); }
+    .notice { display:flex; gap:.8rem; align-items:flex-start; padding:1rem 1.1rem; margin:1rem 0 1.6rem; background:var(--accent-soft); border:1px solid rgba(77,95,233,.18); border-radius:14px; }
+    .notice svg { flex:0 0 20px; margin-top:2px; color:var(--accent); }
+    .notice strong { display:block; margin-bottom:.1rem; }
+    .notice p { margin:0; color:var(--muted); font-size:.9rem; }
+    .section-heading { display:flex; align-items:flex-end; justify-content:space-between; gap:1rem; margin:2.35rem 0 1rem; }
+    .section-heading .step { font-size:.72rem; letter-spacing:.12em; color:var(--accent); font-weight:800; text-transform:uppercase; }
+    h2 { font-size:1.45rem; letter-spacing:-.035em; margin:.2rem 0 0; font-weight:800; }
+    .section-heading p { color:var(--muted); margin:0; font-size:.88rem; max-width:440px; }
+    .layout-2 { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,.95fr); gap:1rem; align-items:start; }
+    .panel { background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:1.35rem; box-shadow:var(--shadow); min-width:0; }
+    .panel-header { display:flex; justify-content:space-between; gap:.8rem; align-items:flex-start; margin-bottom:1rem; }
+    .panel-header h3 { font-size:1.05rem; font-weight:800; letter-spacing:-.02em; margin:0; }
+    .panel-header p { font-size:.82rem; margin:.25rem 0 0; color:var(--muted); }
+    .tag { display:inline-flex; align-items:center; white-space:nowrap; gap:.35rem; border-radius:100px; padding:.34rem .6rem; border:1px solid var(--line); font-size:.7rem; color:var(--muted); font-weight:800; }
+    .tag.warning { color:var(--amber); background:rgba(240,170,61,.1); border-color:rgba(240,170,61,.25); }
+    .tag.safe { color:var(--green); background:rgba(23,131,93,.08); border-color:rgba(23,131,93,.2); }
+    .form-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.85rem; }
+    .field { min-width:0; }
+    .field.full { grid-column:1/-1; }
+    label, .label { display:block; font-size:.78rem; font-weight:800; color:var(--text); margin:0 0 .38rem; }
+    .field-hint { display:block; font-size:.72rem; color:var(--muted); margin-top:.3rem; }
+    input[type="text"], input[type="search"], select, textarea {
+      width:100%; min-width:0; border:1px solid var(--line); background:var(--surface-muted); color:var(--text); border-radius:10px;
+      padding:.72rem .78rem; font:inherit; font-size:.88rem; outline:none; transition:border-color .15s ease, box-shadow .15s ease;
+    }
+    textarea { resize:vertical; min-height:96px; }
+    input:focus, select:focus, textarea:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(77,95,233,.12); }
+    .form-actions { display:flex; flex-wrap:wrap; gap:.6rem; align-items:center; margin-top:1rem; }
+    .tiny-note { color:var(--muted); font-size:.75rem; }
+    .result-empty { border:1px dashed var(--line); background:var(--surface-muted); border-radius:14px; padding:1.2rem; color:var(--muted); font-size:.9rem; }
+    .result-banner { padding:.85rem 1rem; border-radius:12px; background:var(--surface-muted); border:1px solid var(--line); margin-bottom:1rem; }
+    .result-banner strong { display:block; font-size:.94rem; }
+    .result-banner p { margin:.2rem 0 0; color:var(--muted); font-size:.8rem; }
+    .candidate-list { display:grid; gap:.7rem; padding:0; margin:0; list-style:none; }
+    .candidate { display:flex; align-items:flex-start; gap:.75rem; padding:.85rem; border:1px solid var(--line); border-radius:12px; background:var(--surface); }
+    .candidate-num { display:grid; place-items:center; flex:0 0 25px; height:25px; border-radius:8px; font-size:.75rem; font-weight:800; color:var(--accent); background:var(--accent-soft); }
+    .candidate strong { display:block; font-size:.85rem; margin-bottom:.18rem; }
+    .candidate p { color:var(--muted); margin:0; font-size:.8rem; }
+    .checklist { display:grid; gap:.5rem; margin:1rem 0 0; }
+    .check-row { display:flex; gap:.65rem; align-items:flex-start; padding:.68rem .75rem; border:1px solid var(--line); border-radius:10px; background:var(--surface-muted); font-size:.82rem; }
+    .check-row input { margin-top:.25rem; accent-color:var(--accent); flex:0 0 auto; }
+    .check-row span { color:var(--text); }
+    .check-row:has(input:checked) span { color:var(--muted); text-decoration:line-through; }
+    .inline-callout { padding:.8rem .9rem; margin-top:1rem; background:rgba(8,127,140,.08); border:1px solid rgba(8,127,140,.2); color:var(--muted); border-radius:11px; font-size:.8rem; }
+    .inline-callout strong { color:var(--teal); }
+    .code-area { min-height:235px; font-size:.82rem!important; line-height:1.65; tab-size:4; }
+    .code-tools { display:flex; flex-wrap:wrap; align-items:center; gap:.55rem; margin:.7rem 0 0; }
+    .scan-results { margin-top:1rem; display:grid; gap:.6rem; }
+    .scan-item { padding:.85rem .9rem; border:1px solid var(--line); border-radius:11px; background:var(--surface-muted); }
+    .scan-item strong { display:block; font-size:.85rem; margin-bottom:.18rem; }
+    .scan-item p { margin:0; font-size:.8rem; color:var(--muted); }
+    .scan-item .scan-state { display:inline-block; text-transform:uppercase; letter-spacing:.08em; font-weight:900; font-size:.64rem; color:var(--amber); margin-bottom:.2rem; }
+    .sql-layout { display:grid; grid-template-columns:minmax(0,.92fr) minmax(0,1.08fr); gap:1rem; }
+    .sql-output { min-height:180px; overflow:auto; border:1px solid var(--line); border-radius:12px; background:var(--surface-muted); padding:.5rem; }
+    .sql-output table { font-size:.77rem; margin:0; color:var(--text); --bs-table-bg:transparent; --bs-table-color:var(--text); }
+    .sql-output th { white-space:nowrap; }
+    .sql-status { margin:.5rem 0 0; font-size:.78rem; color:var(--muted); min-height:1.2rem; }
+    .note-list { display:grid; gap:.75rem; margin-top:1rem; }
+    .note-card { border:1px solid var(--line); border-radius:13px; padding:.95rem; background:var(--surface-muted); }
+    .note-top { display:flex; justify-content:space-between; align-items:flex-start; gap:.7rem; }
+    .note-card h4 { font-size:.92rem; font-weight:800; margin:0; overflow-wrap:anywhere; }
+    .note-meta { color:var(--muted); font-size:.7rem; margin:.2rem 0 .5rem; }
+    .note-body { white-space:pre-wrap; overflow-wrap:anywhere; color:var(--muted); font-size:.82rem; margin:0; }
+    .note-delete { flex:0 0 auto; border:1px solid var(--line); color:var(--red); background:var(--surface); border-radius:9px; padding:.35rem .55rem; font-weight:800; font-size:.72rem; }
+    .workflow-box { overflow:hidden; }
+    .mermaid { min-height:225px; display:flex; justify-content:center; align-items:center; overflow:auto; padding:1rem; background:var(--surface-muted); border:1px solid var(--line); border-radius:13px; }
+    .mermaid svg { max-width:100%; height:auto; }
+    #workflow-diagram.diagram-collapsed { max-height: 100px; }
+    .python-box { margin-top:1rem; border:1px solid var(--line); border-radius:13px; padding:1rem; background:var(--surface-muted); }
+    .python-box summary { cursor:pointer; font-weight:800; font-size:.87rem; }
+    .python-box p { color:var(--muted); font-size:.8rem; margin:.6rem 0; }
+    .python-box .py-controls { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:.6rem; align-items:start; }
+    #python-output { margin-top:.65rem; font-size:.8rem; white-space:pre-wrap; color:var(--teal); }
+    .footer { margin:3rem 0 1.5rem; padding:1.2rem 0 1.8rem; border-top:1px solid var(--line); display:flex; justify-content:space-between; gap:1rem; color:var(--muted); font-size:.78rem; }
+    .footer p { margin:0; max-width:680px; }
+    .visually-muted { color:var(--muted); }
+    .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+    @media (max-width: 860px) {
+      .hero { grid-template-columns:1fr; padding-top:25px; }
+      .hero-card { max-width:none; }
+      .layout-2, .sql-layout { grid-template-columns:1fr; }
+      .section-heading { align-items:flex-start; flex-direction:column; }
+    }
+    @media (max-width: 580px) {
+      .app-shell { width:calc(100% - 22px); }
+      .topbar { padding:14px 0; }
+      .top-link { display:none; }
+      .brand { font-size:.92rem; }
+      .brand-mark { width:37px; height:37px; }
+      .hero { gap:1.3rem; }
+      .hero p { font-size:.94rem; }
+      .panel { padding:1rem; border-radius:16px; }
+      .form-grid { grid-template-columns:1fr; }
+      .field.full { grid-column:auto; }
+      .hero-metrics { grid-template-columns:repeat(3,1fr); }
+      .metric { padding:.55rem; }
+      .footer { flex-direction:column; }
+      .python-box .py-controls { grid-template-columns:1fr; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { scroll-behavior:auto!important; animation-duration:.01ms!important; animation-iteration-count:1!important; transition-duration:.01ms!important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#top" aria-label="PHP Diagnostic Toolkit home">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M4 6.5h16M4 12h10M4 17.5h7" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="m16 15 2 2 3-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </span>
+        <span>PHP Diagnostic Toolkit</span>
+      </a>
+      <nav class="top-actions" aria-label="Primary navigation">
+        <a class="top-link" href="#investigator">Investigate</a>
+        <a class="top-link" href="#code-scan">Code scan</a>
+        <a class="top-link" href="#notes">Notes</a>
+        <button id="theme-toggle" class="btn-secondary-tool" type="button" aria-pressed="false" title="Toggle light or dark theme">Dark mode</button>
+      </nav>
+    </header>
+
+    <main id="top">
+      <section class="hero" aria-labelledby="hero-title">
+        <div>
+          <div class="eyebrow"><span class="status-dot"></span> Browser-based investigation workspace</div>
+          <h1 id="hero-title" class="hero-title">Find the cause.<br>Verify the fix.</h1>
+          <p>Turn PHP symptoms into a repeatable investigation. Capture the environment, inspect common risk patterns, test isolated SQL examples, and keep a clear record of what is confirmed versus what is still a hypothesis.</p>
+          <div class="d-flex flex-wrap gap-2 mt-4">
+            <button class="btn-tool" type="button" hx-on:click="document.getElementById('investigator').scrollIntoView({behavior: 'smooth'})">Start an investigation <span aria-hidden="true">↗</span></button>
+            <button id="sample-issue" class="btn-secondary-tool" type="button">Load sample case</button>
+          </div>
+        </div>
+        <aside class="hero-card ease-fade-in" aria-label="Toolkit scope">
+          <div class="mini-label">Toolkit scope</div>
+          <strong>Evidence first, not guesswork.</strong>
+          <p>Local heuristics and examples can guide a diagnosis, but the actual PHP runtime remains the source of truth.</p>
+          <div class="hero-metrics">
+            <div class="metric"><b>2</b><span>project files</span></div>
+            <div class="metric"><b>0</b><span>PHP execution</span></div>
+            <div class="metric"><b>Local</b><span>SQL sandbox</span></div>
+          </div>
+        </aside>
+      </section>
+
+      <div class="notice" role="note">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.8"/><path d="M12 10.5v5M12 7.5h.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <div><strong>This page does not run PHP or prove a root cause.</strong><p>Code scanning is a lightweight pattern review, not a parser or security audit. Confirm syntax, configuration, behavior, and fixes in a controlled PHP environment using the affected version.</p></div>
+      </div>
+
+      <section id="investigator" aria-labelledby="investigator-title">
+        <div class="section-heading">
+          <div><div class="step">01 / Investigate</div><h2 id="investigator-title">Describe the failure</h2></div>
+          <p>A clear reproduction and environment record is more useful than guessing from an error message alone.</p>
+        </div>
+        <div class="layout-2">
+          <section class="panel" aria-label="Issue details form">
+            <div class="panel-header"><div><h3>Issue report</h3><p>Capture observed facts before changing code.</p></div><span class="tag">Local only</span></div>
+            <form id="issue-form">
+              <div class="form-grid">
+                <div class="field full"><label for="issue-title">Issue title</label><input id="issue-title" type="text" placeholder="e.g. API returns HTTP 500 after PHP upgrade" required maxlength="140"></div>
+                <div class="field"><label for="issue-category">Issue category</label><select id="issue-category"><option value="unknown">Not sure yet</option><option value="syntax">Syntax / parsing</option><option value="compatibility">Version compatibility</option><option value="configuration">Configuration / runtime</option><option value="dependency">Composer / dependency</option><option value="database">Database / query</option><option value="security">Security / input handling</option><option value="performance">Performance / memory</option></select></div>
+                <div class="field"><label for="php-version">Affected PHP version</label><select id="php-version"><option value="Unknown">Unknown / not checked</option><option>7.4</option><option>8.0</option><option>8.1</option><option>8.2</option><option>8.3</option><option>8.4</option><option>8.5</option><option value="Other / custom build">Other / custom build</option></select></div>
+                <div class="field full"><label for="error-message">Exact error / log message</label><textarea id="error-message" placeholder="Paste the exact message and stack trace after removing secrets, tokens, and personal data." rows="3" maxlength="6000"></textarea><span class="field-hint">Keep the original wording and line number. Redact credentials and user data.</span></div>
+                <div class="field full"><label for="reproduction">Minimal reproduction steps</label><textarea id="reproduction" placeholder="1. Run this command or request…&#10;2. Expected result…&#10;3. Actual result…" rows="4" maxlength="5000"></textarea></div>
+              </div>
+              <div class="form-actions"><button type="submit" class="btn-tool">Generate investigation checklist</button><button type="button" class="btn-secondary-tool" id="clear-issue">Clear form</button><span class="tiny-note">No data is sent to a server by this app.</span></div>
+            </form>
+          </section>
+
+          <section class="panel" aria-live="polite" aria-labelledby="triage-title">
+            <div class="panel-header"><div><h3 id="triage-title">Investigation plan</h3><p>Potential causes are prompts for verification, not findings.</p></div><span id="triage-status" class="tag warning">Awaiting details</span></div>
+            <div id="triage-output" class="result-empty">Submit an issue report to generate a targeted checklist. Start with the exact environment and a reproducible failure.</div>
+            <div id="triage-checklist-wrap" hidden>
+              <div class="checklist" id="triage-checklist"></div>
+              <div class="inline-callout"><strong>Evidence standard:</strong> mark a root cause as confirmed only after you can reproduce the failure, identify the causal change, and demonstrate that the targeted fix removes it.</div>
+              <div class="inline-callout" x-data="{ showGuide: false }">
+                <button type="button" class="btn-quiet" @click="showGuide = !showGuide" :aria-expanded="showGuide">What counts as a verified fix?</button>
+                <p x-show="showGuide" x-transition class="mt-2 mb-0">A verified fix reproduces the original failure before the change, removes it after the targeted change, and passes a regression test on the relevant PHP version and dependencies. A disappearing error alone may be a workaround rather than a confirmed cause.</p>
+              </div>
+              <div class="field mt-3"><label for="confirmed-cause">Verified root cause (fill in only after evidence)</label><input type="text" id="confirmed-cause" placeholder="Not yet confirmed" maxlength="500"></div>
+              <div class="field mt-3"><label for="verification-evidence">Verification evidence / regression test</label><textarea id="verification-evidence" rows="2" placeholder="What test failed before and passed after the change?" maxlength="1500"></textarea></div>
+              <div class="form-actions"><button type="button" class="btn-secondary-tool" id="copy-report">Copy investigation summary</button><span id="copy-status" class="tiny-note" role="status"></span></div>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section id="code-scan" aria-labelledby="code-scan-title">
+        <div class="section-heading">
+          <div><div class="step">02 / Inspect</div><h2 id="code-scan-title">Review PHP patterns</h2></div>
+          <p>Find familiar migration and security warning patterns before reproducing them in a proper development environment.</p>
+        </div>
+        <div class="layout-2">
+          <section class="panel">
+            <div class="panel-header"><div><h3>PHP snippet review</h3><p>Scans the snippet text in this browser tab only.</p></div><span class="tag warning">Heuristic</span></div>
+            <label for="php-code">PHP code snippet</label>
+            <textarea id="php-code" class="code-area" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="Paste a small PHP snippet here. Do not include credentials, session data, or production secrets."><?php
+// Example: request input should be validated and bound as a query parameter.
+$name = $_GET['name'] ?? '';
+echo $name;
+?></textarea>
+            <div class="code-tools"><button type="button" class="btn-tool" id="scan-code">Scan patterns</button><button type="button" class="btn-secondary-tool" id="load-code-sample">Load example</button><button type="button" class="btn-quiet" id="clear-code">Clear</button></div>
+            <div class="inline-callout"><strong>Important:</strong> this checks a few text patterns only. It does not parse PHP grammar, resolve variable flow, inspect dependencies, or assess every vulnerability.</div>
+          </section>
+          <section class="panel" aria-live="polite">
+            <div class="panel-header"><div><h3>Review results</h3><p>Every item requires human review.</p></div><span id="scan-status" class="tag">Not scanned</span></div>
+            <div id="scan-output" class="result-empty">Run a pattern scan to see potential review points. No result here means only that these specific patterns were not detected.</div>
+            <p class="tiny-note mt-3 mb-0">For syntax validation, use the real PHP executable, for example <code>php -l path/to/file.php</code>, on the same PHP version as the affected environment.</p>
+          </section>
+        </div>
+      </section>
+
+      <section id="sql-lab" aria-labelledby="sql-title">
+        <div class="section-heading">
+          <div><div class="step">03 / Isolate</div><h2 id="sql-title">Try an in-memory SQL example</h2></div>
+          <p>The sample database is created in this browser session. It is not connected to a PHP app or a production database.</p>
+        </div>
+        <div class="panel">
+          <div class="sql-layout">
+            <div>
+              <div class="panel-header"><div><h3>SQL scratchpad</h3><p>SQLite via sql.js / WebAssembly.</p></div><span id="sql-init-tag" class="tag">Loading engine…</span></div>
+              <label for="sql-query">SQL statement</label>
+              <textarea id="sql-query" class="code-area" rows="7" spellcheck="false">SELECT category, symptom, severity
+FROM diagnostic_examples
+ORDER BY id;</textarea>
+              <div class="code-tools"><button id="run-sql" type="button" class="btn-tool">Run SQL</button><button id="reset-sql" type="button" class="btn-secondary-tool">Reset sample database</button></div>
+              <p class="tiny-note mt-3 mb-0">Only the bundled demonstration table is available. Results are ephemeral and disappear when the page is refreshed.</p>
+            </div>
+            <div>
+              <div class="panel-header"><div><h3>Query output</h3><p id="sql-output-subtitle">Waiting for a query.</p></div><span class="tag safe">Browser-local</span></div>
+              <div id="sql-output" class="sql-output" aria-live="polite"><p class="tiny-note mb-2">Loading the SQL engine. If it stays unavailable, check your network/CDN access.</p></div>
+              <p class="sql-status" id="sql-status" role="status"></p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="notes" aria-labelledby="notes-title">
+        <div class="section-heading">
+          <div><div class="step">04 / Record</div><h2 id="notes-title">Save investigation notes</h2></div>
+          <p>Notes are saved only when you press save. They stay in this browser's LocalStorage until deleted or browser data is cleared.</p>
+        </div>
+        <div class="layout-2">
+          <section class="panel">
+            <div class="panel-header"><div><h3>New note</h3><p>Do not save secrets or personal information.</p></div><span class="tag">LocalStorage</span></div>
+            <form id="note-form">
+              <div class="form-grid">
+                <div class="field full"><label for="note-title">Title</label><input type="text" id="note-title" required maxlength="120" placeholder="e.g. PHP 8.3 compatibility finding"></div>
+                <div class="field full"><label for="note-category">Category</label><select id="note-category"><option>Investigation</option><option>Reproduction</option><option>Root cause verified</option><option>Fix / regression test</option><option>Follow-up</option></select></div>
+                <div class="field full"><label for="note-content">Note</label><textarea id="note-content" required rows="5" maxlength="5000" placeholder="Record evidence, commands, expected vs. actual behavior, or a next step."></textarea></div>
+              </div>
+              <div class="form-actions"><button type="submit" class="btn-tool">Save note to this browser</button><button type="button" id="clear-notes" class="btn-quiet">Delete all saved notes</button></div>
+              <p id="notes-status" class="tiny-note mt-2" role="status"></p>
+            </form>
+          </section>
+          <section class="panel">
+            <div class="panel-header"><div><h3>Saved notes</h3><p id="notes-count">0 notes</p></div><span class="tag">Not synced</span></div>
+            <div id="note-list" class="note-list"><div class="result-empty">No saved notes yet.</div></div>
+          </section>
+        </div>
+      </section>
+
+      <section id="workflow" aria-labelledby="workflow-title">
+        <div class="section-heading">
+          <div><div class="step">05 / Repeat</div><h2 id="workflow-title">Follow a root-cause workflow</h2></div>
+          <p>Keep the investigation reproducible and distinguish observed facts from assumptions.</p>
+        </div>
+        <section class="panel workflow-box">
+          <div class="panel-header"><div><h3>Diagnostic workflow</h3><p>Adjust the steps to your team's incident process.</p></div><span class="tag safe">Mermaid</span></div>
+          <div class="mermaid" id="workflow-diagram">
+flowchart TD
+    A[Record exact symptom and environment] --> B[Create a minimal reproduction]
+    B --> C{Can the failure be reproduced?}
+    C -- No --> D[Collect logs and compare environments]
+    D --> B
+    C -- Yes --> E[Form a testable cause hypothesis]
+    E --> F[Change one relevant variable]
+    F --> G{Does the result support the hypothesis?}
+    G -- No --> E
+    G -- Yes --> H[Apply targeted fix]
+    H --> I[Run regression tests on target PHP version]
+    I --> J[Document cause, evidence, and limits]
+          </div>
+          <div class="inline-callout"><strong>Definition of done:</strong> the failure can be reproduced, a causal condition has been demonstrated, a targeted change resolves it, and a regression test guards against recurrence.</div>
+          <div class="form-actions"><button type="button" class="btn-secondary-tool" _="on click toggle .diagram-collapsed on #workflow-diagram">Toggle diagram height</button><span class="tiny-note">Interactive control powered by hyperscript.</span></div>
+          <div class="python-box">
+            <details>
+              <summary>Optional Python-in-browser text analysis (PyScript)</summary>
+              <p>PyScript loads an optional Python runtime from a pinned CDN release. Enter a sanitized error message to count lines and detect repeated non-empty lines. This is text processing, not PHP analysis.</p>
+              <div class="py-controls">
+                <textarea id="python-input" rows="3" maxlength="5000" placeholder="Paste a redacted error message here…"></textarea>
+                <button id="python-run" type="button" class="btn-secondary-tool">Analyze text</button>
+              </div>
+              <div id="python-output" role="status" aria-live="polite">Python analysis is ready when the optional runtime has loaded.</div>
+              <script type="py">
+from js import document
+from pyscript import when
+
+@when("click", "#python-run")
+def analyze_error_text(event):
+    source = document.querySelector("#python-input").value or ""
+    lines = source.splitlines()
+    non_empty = [line.strip() for line in lines if line.strip()]
+    repeated = sorted({line for line in non_empty if non_empty.count(line) > 1})
+    report = f"Characters: {len(source)} | Lines: {len(lines)} | Non-empty lines: {len(non_empty)}"
+    if repeated:
+        report += "\nRepeated lines:\n- " + "\n- ".join(repeated[:10])
+    else:
+        report += "\nNo repeated non-empty lines detected."
+    document.querySelector("#python-output").innerText = report
+              </script>
+            </details>
+          </div>
+        </section>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <p><strong>PHP Diagnostic Toolkit</strong> · Static two-file project. Use it for triage and education; validate decisions in the real environment.</p>
+      <p>External CDN dependencies require network access. Do not submit secrets, credentials, production dumps, or private customer data.</p>
+    </footer>
+  </div>
+
+  <!-- Client-side interaction libraries. -->
+  <script src="https://cdn.jsdelivr.net/npm/htmx.org@2.0.11/dist/htmx.min.js" integrity="sha384-2OatzQy1H+Zd/IIrjr1TcuDGqLXeHhbooAyJY1KdQMKnr4LZ22k31GBLdYKHmVjg" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.17.5/dist/cdn.min.js" defer></script>
+  <script src="https://unpkg.com/hyperscript.org@0.9.14"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sql.js@1.15.1/dist/sql-wasm.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@11.15.0/dist/mermaid.min.js"></script>
+
+  <script>
+    (() => {
+      'use strict';
+
+      const NOTE_KEY = 'php-diagnostic-toolkit.notes.v1';
+      const THEME_KEY = 'php-diagnostic-toolkit.theme.v1';
+      const $ = (selector) => document.querySelector(selector);
+      const safeString = (value) => String(value ?? '');
+
+      const categoryGuidance = {
+        syntax: {
+          title: 'Syntax / parsing',
+          candidate: 'A parse error may be caused by a delimiter, quote, bracket, or syntax feature unsupported by the active PHP version.',
+          steps: [
+            'Run php -l against the exact file using the affected PHP executable; record the full message and line number.',
+            'Inspect the reported line and the preceding line for missing semicolons, quotes, parentheses, braces, or array delimiters.',
+            'Compare CLI PHP with the PHP-FPM / web-server version; they may not be the same runtime.',
+            'Reduce the code to the smallest failing snippet and rerun the same lint command.'
+          ]
+        },
+        compatibility: {
+          title: 'Version compatibility',
+          candidate: 'The code or a dependency may use behavior removed, deprecated, or changed in the target PHP version.',
+          steps: [
+            'Capture php -v from the CLI and the version reported by the actual web runtime.',
+            'Search the exact error and API name in the PHP migration guides for the source and target versions.',
+            'Review composer.json, composer.lock, and any declared PHP platform constraint before upgrading packages.',
+            'Run tests with the target PHP version and add a regression test for the failing behavior.'
+          ]
+        },
+        configuration: {
+          title: 'Configuration / runtime',
+          candidate: 'Runtime settings, enabled extensions, file permissions, environment variables, or web-server configuration may differ from expectations.',
+          steps: [
+            'Compare CLI and web-runtime versions, loaded ini files, and enabled extensions in a safe diagnostic environment.',
+            'Check relevant error logs, working directory, file permissions, environment variables, and service restart history.',
+            'Compare a known-good environment with the failing environment one setting at a time.',
+            'Never publish phpinfo() output from a production server; it can reveal sensitive configuration.'
+          ]
+        },
+        dependency: {
+          title: 'Composer / dependency',
+          candidate: 'A package version or transitive dependency may be incompatible with the installed PHP version or with another package.',
+          steps: [
+            'Run composer validate and composer check-platform-reqs in the relevant environment.',
+            'Review composer.lock and the exact dependency change that preceded the failure.',
+            'Use Composer\u2019s dependency resolution output to identify conflicting constraints instead of deleting the lock file blindly.',
+            'Reproduce with a clean install and run targeted tests before deploying a dependency change.'
+          ]
+        },
+        database: {
+          title: 'Database / query',
+          candidate: 'The issue may involve query construction, schema drift, parameter binding, connection settings, transaction state, or permissions.',
+          steps: [
+            'Capture the database driver, server version, schema/migration version, SQLSTATE, and sanitized query context.',
+            'Check whether the failing query succeeds with representative non-production data and the same database engine.',
+            'Use prepared statements for data values; do not concatenate untrusted input into SQL.',
+            'Check transaction boundaries and database permissions, then add a regression test for the query behavior.'
+          ]
+        },
+        security: {
+          title: 'Security / input handling',
+          candidate: 'Untrusted input may cross a trust boundary without context-appropriate validation, parameterization, authorization, or output encoding.',
+          steps: [
+            'Identify the source of untrusted input and trace where it is validated, authorized, queried, and rendered.',
+            'Use parameterized queries for SQL values and context-aware output encoding for HTML.',
+            'Check authorization on the server for every sensitive operation; hiding a control in the browser is not authorization.',
+            'Test with harmless crafted inputs in an authorized non-production environment and review relevant security advisories.'
+          ]
+        },
+        performance: {
+          title: 'Performance / memory',
+          candidate: 'The symptom may be related to request volume, unbounded data, blocking I/O, inefficient queries, or memory/time limits.',
+          steps: [
+            'Record response time, memory usage, request size, and the workload that triggers the issue.',
+            'Check logs for max execution time, memory exhaustion, slow queries, retries, and external service latency.',
+            'Profile a reproducible non-production workload before optimizing; avoid changing limits without understanding the cause.',
+            'Test the proposed fix at representative load and monitor for regressions.'
+          ]
+        },
+        unknown: {
+          title: 'General triage',
+          candidate: 'There is not enough evidence to identify a likely category. Establish a minimal, repeatable reproduction first.',
+          steps: [
+            'Record the exact error, timestamp, request/command, expected behavior, and actual behavior.',
+            'Capture PHP version, execution mode (CLI, FPM, Apache module), operating system, extensions, and recent changes.',
+            'Reproduce with the smallest possible example and sanitized input.',
+            'Change one variable at a time and record whether the observation supports or contradicts each hypothesis.'
+          ]
+        }
+      };
+
+      const candidateEl = (number, title, description) => {
+        const item = document.createElement('li');
+        item.className = 'candidate';
+        const index = document.createElement('span');
+        index.className = 'candidate-num';
+        index.textContent = String(number).padStart(2, '0');
+        const body = document.createElement('div');
+        const strong = document.createElement('strong');
+        strong.textContent = title;
+        const p = document.createElement('p');
+        p.textContent = description;
+        body.append(strong, p);
+        item.append(index, body);
+        return item;
+      };
+
+      function runTriage(event) {
+        event.preventDefault();
+        const title = $('#issue-title').value.trim();
+        if (!title) { $('#issue-title').focus(); return; }
+        const categoryKey = $('#issue-category').value;
+        const version = $('#php-version').value;
+        const errorText = $('#error-message').value.trim();
+        const reproduction = $('#reproduction').value.trim();
+        const guidance = categoryGuidance[categoryKey] || categoryGuidance.unknown;
+        const candidates = [{ title: guidance.title, description: guidance.candidate }];
+        const errorLower = errorText.toLowerCase();
+        if (/undefined function|call to undefined method|class .* not found/.test(errorLower)) {
+          candidates.push({ title: 'Autoloading / package availability', description: 'The message mentions a missing function, method, or class. Verify namespaces, Composer autoloading, package installation, and runtime version before concluding a cause.' });
+        }
+        if (/sqlstate|syntax error.*sql|deadlock|connection refused|too many connections/.test(errorLower)) {
+          candidates.push({ title: 'Database connection or query evidence', description: 'The text resembles a database-related failure. Capture the SQLSTATE/driver details and reproduce with the same database engine and schema.' });
+        }
+        if (/allowed memory size|maximum execution time|timeout|out of memory/.test(errorLower)) {
+          candidates.push({ title: 'Resource limit or workload', description: 'The message mentions a timeout or memory threshold. Measure the workload and profile it before increasing limits.' });
+        }
+        if (!errorText) {
+          candidates.push({ title: 'Collect the exact error', description: 'No error message was supplied. Capture the full sanitized message, stack trace, timestamp, and relevant server log before narrowing the search.' });
+        }
+        if (!reproduction) {
+          candidates.push({ title: 'Create a minimal reproduction', description: 'No reproduction steps were supplied. Document the command/request and the expected vs. actual result before changing code.' });
+        }
+
+        $('#triage-status').textContent = 'Hypotheses only';
+        $('#triage-status').className = 'tag warning';
+        const output = $('#triage-output');
+        output.className = '';
+        output.replaceChildren();
+        const banner = document.createElement('div');
+        banner.className = 'result-banner';
+        const heading = document.createElement('strong');
+        heading.textContent = title;
+        const summary = document.createElement('p');
+        summary.textContent = `Category: ${guidance.title} · PHP version: ${version}. This plan identifies investigation steps, not a verified root cause.`;
+        banner.append(heading, summary);
+        output.append(banner);
+        const list = document.createElement('ul');
+        list.className = 'candidate-list';
+        candidates.forEach((candidate, index) => list.append(candidateEl(index + 1, candidate.title, candidate.description)));
+        output.append(list);
+
+        const checklist = $('#triage-checklist');
+        checklist.replaceChildren();
+        guidance.steps.forEach((step, index) => {
+          const label = document.createElement('label');
+          label.className = 'check-row';
+          const checkbox = document.createElement('input');
+          checkbox.type = 'checkbox';
+          checkbox.name = 'triage-check';
+          const span = document.createElement('span');
+          span.textContent = step;
+          label.append(checkbox, span);
+          checklist.append(label);
+        });
+        $('#triage-checklist-wrap').hidden = false;
+        $('#copy-status').textContent = '';
+      }
+
+      $('#issue-form').addEventListener('submit', runTriage);
+      $('#clear-issue').addEventListener('click', () => {
+        $('#issue-form').reset();
+        $('#triage-output').className = 'result-empty';
+        $('#triage-output').textContent = 'Submit an issue report to generate a targeted checklist. Start with the exact environment and a reproducible failure.';
+        $('#triage-checklist-wrap').hidden = true;
+        $('#triage-status').textContent = 'Awaiting details';
+        $('#triage-status').className = 'tag warning';
+      });
+      $('#sample-issue').addEventListener('click', () => {
+        $('#issue-title').value = 'Undefined function after a PHP version change';
+        $('#issue-category').value = 'compatibility';
+        $('#php-version').value = '8.3';
+        $('#error-message').value = 'Fatal error: Uncaught Error: Call to undefined function legacy_helper()';
+        $('#reproduction').value = '1. Deploy the same commit to staging.\n2. Trigger the affected request.\n3. The request fails with the error above; the previous environment did not fail.';
+        $('#issue-form').requestSubmit();
+        $('#investigator').scrollIntoView({ behavior: 'smooth' });
+      });
+
+      $('#copy-report').addEventListener('click', async () => {
+        const title = $('#issue-title').value.trim() || '(untitled issue)';
+        const category = $('#issue-category').selectedOptions[0].textContent;
+        const version = $('#php-version').value;
+        const errorText = $('#error-message').value.trim() || '(not provided)';
+        const repro = $('#reproduction').value.trim() || '(not provided)';
+        const checks = [...document.querySelectorAll('input[name="triage-check"]')].map((input, index) => `${input.checked ? '[x]' : '[ ]'} ${input.parentElement.innerText.trim()}`).join('\n');
+        const cause = $('#confirmed-cause').value.trim() || 'Not confirmed';
+        const evidence = $('#verification-evidence').value.trim() || 'Not recorded';
+        const report = `PHP Diagnostic Toolkit — Investigation Summary\n\nTitle: ${title}\nCategory: ${category}\nPHP version: ${version}\n\nError:\n${errorText}\n\nReproduction:\n${repro}\n\nChecklist:\n${checks}\n\nVerified root cause: ${cause}\nVerification evidence / regression test: ${evidence}\n\nNote: Browser heuristics are not PHP runtime validation.`;
+        try {
+          await navigator.clipboard.writeText(report);
+          $('#copy-status').textContent = 'Summary copied.';
+        } catch (error) {
+          $('#copy-status').textContent = 'Clipboard access was blocked. Select and copy the text manually.';
+          const fallback = document.createElement('textarea');
+          fallback.value = report;
+          fallback.style.position = 'fixed';
+          fallback.style.opacity = '0';
+          document.body.append(fallback);
+          fallback.select();
+          try { document.execCommand('copy'); } catch (_) { /* keep manual fallback note */ }
+          fallback.remove();
+        }
+      });
+
+      const scanRules = [
+        { id: 'short-tag', test: (code) => /<\?(?!php|=|xml)/i.test(code), title: 'Possible short PHP opening tag', detail: 'Short tags can depend on configuration. Prefer the standard <?php opening tag for predictable behavior.' },
+        { id: 'removed-each', test: (code) => /\beach\s*\(/i.test(code), title: 'Possible each() usage', detail: 'The each() function was removed in PHP 8.0. Verify whether this match is an actual function call and replace it with an appropriate iteration pattern if needed.' },
+        { id: 'legacy-mysql', test: (code) => /\bmysql_(?:connect|query|select_db|fetch_array|real_escape_string)\s*\(/i.test(code), title: 'Legacy mysql_* API pattern', detail: 'The old mysql extension was removed in PHP 7. Use a supported API such as PDO or mysqli after reviewing the query and error-handling behavior.' },
+        { id: 'eval', test: (code) => /\beval\s*\(/i.test(code), title: 'eval() pattern', detail: 'eval() executes code and can create a serious injection risk when input is influenced by users. Confirm whether it is needed and review the full data flow.' },
+        { id: 'request-input', test: (code) => /\$_(?:GET|POST|REQUEST)\b/.test(code), title: 'Request input present', detail: 'Request parameters are untrusted. Check validation, authorization, query parameterization, and output encoding at each use site.' },
+        { id: 'request-output', test: (code) => /\$_(?:GET|POST|REQUEST)\b/.test(code) && /\b(?:echo|print)\b/.test(code), title: 'Request input and output statement both present', detail: 'This combination is only a broad review signal, not proof of XSS. Trace whether untrusted data reaches HTML and apply context-appropriate output encoding.' },
+        { id: 'dynamic-sql', test: (code) => /\b(?:SELECT|INSERT|UPDATE|DELETE)\b[\s\S]{0,250}\$_(?:GET|POST|REQUEST)\b/i.test(code), title: 'Possible dynamic SQL with request data', detail: 'Check whether input is concatenated into SQL. Use a prepared statement and bind values instead of interpolating untrusted input.' },
+        { id: 'closing-tag', test: (code) => /<\?php/.test(code) && /\?>\s*$/.test(code), title: 'Closing PHP tag at end of file', detail: 'For files containing only PHP, omitting the closing tag avoids accidental trailing whitespace output. This is a style review point, not an error.' },
+        { id: 'deprecated-create-function', test: (code) => /\bcreate_function\s*\(/i.test(code), title: 'create_function() pattern', detail: 'create_function() was deprecated in PHP 7.2 and removed in PHP 8.0. Verify the call and replace it with a closure if applicable.' }
+      ];
+
+      function runCodeScan() {
+        const code = $('#php-code').value;
+        const output = $('#scan-output');
+        output.replaceChildren();
+        $('#scan-status').textContent = 'Pattern scan complete';
+        $('#scan-status').className = 'tag warning';
+        const hits = scanRules.filter((rule) => rule.test(code));
+        const globalNotes = [];
+        if (!code.trim()) globalNotes.push({ title: 'No snippet supplied', detail: 'Paste a small, sanitized PHP snippet and run the scan again.' });
+        else if (!/<\?php\b/.test(code) && !/<\?=/.test(code)) globalNotes.push({ title: 'PHP opening tag not detected', detail: 'The text might be a partial snippet. This scan does not determine whether the source file is valid PHP.' });
+        const allResults = [...globalNotes, ...hits];
+        if (allResults.length === 0) {
+          const empty = document.createElement('div');
+          empty.className = 'result-empty';
+          empty.textContent = 'No configured text patterns were detected. This is not a clean bill of health and does not establish syntax validity or security.';
+          output.append(empty);
+          $('#scan-status').textContent = 'No configured patterns';
+          $('#scan-status').className = 'tag safe';
+          return;
+        }
+        allResults.forEach((result) => {
+          const card = document.createElement('div');
+          card.className = 'scan-item';
+          const state = document.createElement('span');
+          state.className = 'scan-state';
+          state.textContent = 'Review point';
+          const title = document.createElement('strong');
+          title.textContent = result.title;
+          const detail = document.createElement('p');
+          detail.textContent = result.detail;
+          card.append(state, title, detail);
+          output.append(card);
+        });
+      }
+      $('#scan-code').addEventListener('click', runCodeScan);
+      $('#load-code-sample').addEventListener('click', () => {
+        $('#php-code').value = `<?php
+function getProfile(PDO $pdo, array $request): array {
+    $id = $request['id'] ?? null;
+    $sql = "SELECT * FROM profiles WHERE id = " . $id;
+    $rows = mysql_query($sql);
+    echo $_GET['message'] ?? '';
+    each($rows);
+    return [];
+}
+?>`;
+        runCodeScan();
+      });
+      $('#clear-code').addEventListener('click', () => {
+        $('#php-code').value = '';
+        $('#scan-output').className = 'result-empty';
+        $('#scan-output').textContent = 'Run a pattern scan to see potential review points.';
+        $('#scan-status').textContent = 'Not scanned';
+        $('#scan-status').className = 'tag';
+      });
+
+      let sqlDatabase = null;
+      const SQL_VERSION = '1.15.1';
+      const seedSql = `CREATE TABLE diagnostic_examples (
+        id INTEGER PRIMARY KEY,
+        category TEXT NOT NULL,
+        symptom TEXT NOT NULL,
+        severity TEXT NOT NULL
+      );
+      INSERT INTO diagnostic_examples (category, symptom, severity) VALUES
+        ('Compatibility', 'Call to undefined function after upgrade', 'High'),
+        ('Configuration', 'CLI and web runtime load different ini files', 'Medium'),
+        ('Database', 'SQLSTATE error from an unbound query parameter', 'High'),
+        ('Dependency', 'Composer platform requirement is not satisfied', 'Medium'),
+        ('Security', 'Untrusted value reaches an HTML output context', 'High');`;
+
+      function renderSqlResults(results) {
+        const output = $('#sql-output');
+        output.replaceChildren();
+        if (!results || results.length === 0) {
+          const p = document.createElement('p');
+          p.className = 'tiny-note mb-2';
+          p.textContent = 'Statement executed. No result set was returned.';
+          output.append(p);
+          $('#sql-output-subtitle').textContent = 'Statement completed without a result set.';
+          return;
+        }
+        let rowsShown = 0;
+        results.forEach((result) => {
+          const table = document.createElement('table');
+          table.className = 'table table-sm table-hover align-middle';
+          const thead = document.createElement('thead');
+          const headRow = document.createElement('tr');
+          result.columns.forEach((column) => {
+            const th = document.createElement('th');
+            th.scope = 'col';
+            th.textContent = safeString(column);
+            headRow.append(th);
+          });
+          thead.append(headRow);
+          const tbody = document.createElement('tbody');
+          result.values.slice(0, 50).forEach((row) => {
+            const tr = document.createElement('tr');
+            row.forEach((value) => {
+              const td = document.createElement('td');
+              td.textContent = value === null ? 'NULL' : safeString(value);
+              tr.append(td);
+            });
+            tbody.append(tr);
+          });
+          rowsShown += Math.min(result.values.length, 50);
+          table.append(thead, tbody);
+          output.append(table);
+        });
+        $('#sql-output-subtitle').textContent = `${rowsShown} row(s) displayed; each result capped at 50 rows.`;
+      }
+
+      function initializeSampleDb(SQL) {
+        if (sqlDatabase) { sqlDatabase.close(); }
+        sqlDatabase = new SQL.Database();
+        sqlDatabase.run(seedSql);
+        $('#sql-init-tag').textContent = `Ready · sql.js ${SQL_VERSION}`;
+        $('#sql-init-tag').className = 'tag safe';
+        $('#sql-status').textContent = 'Sample database is in memory. It has no connection to your PHP app.';
+        renderSqlResults(sqlDatabase.exec($('#sql-query').value));
+      }
+
+      async function setupSql() {
+        if (typeof window.initSqlJs !== 'function') {
+          $('#sql-init-tag').textContent = 'Engine unavailable';
+          $('#sql-init-tag').className = 'tag warning';
+          $('#sql-status').textContent = 'sql.js did not load. Check your network connection or CDN access, then refresh this page.';
+          return;
+        }
+        try {
+          const SQL = await window.initSqlJs({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/sql.js@${SQL_VERSION}/dist/${file}` });
+          window.__SQL_MODULE__ = SQL;
+          initializeSampleDb(SQL);
+        } catch (error) {
+          $('#sql-init-tag').textContent = 'Engine unavailable';
+          $('#sql-init-tag').className = 'tag warning';
+          $('#sql-status').textContent = `Could not initialize sql.js: ${error.message}`;
+        }
+      }
+      $('#run-sql').addEventListener('click', () => {
+        const query = $('#sql-query').value.trim();
+        if (!sqlDatabase) { $('#sql-status').textContent = 'SQL engine is not ready yet.'; return; }
+        if (!query) { $('#sql-status').textContent = 'Enter a SQL statement first.'; return; }
+        if (query.length > 2000) { $('#sql-status').textContent = 'Limit the query to 2,000 characters.'; return; }
+        try {
+          const results = sqlDatabase.exec(query);
+          renderSqlResults(results);
+          $('#sql-status').textContent = 'Executed in the temporary SQLite database. This does not validate a query against MySQL, PostgreSQL, or your production schema.';
+        } catch (error) {
+          $('#sql-output').replaceChildren();
+          const p = document.createElement('p');
+          p.style.color = 'var(--red)';
+          p.textContent = error.message;
+          $('#sql-output').append(p);
+          $('#sql-output-subtitle').textContent = 'Query returned an error.';
+          $('#sql-status').textContent = 'Review the SQLite error. SQL dialects and schemas differ by database engine.';
+        }
+      });
+      $('#reset-sql').addEventListener('click', () => {
+        if (window.__SQL_MODULE__) initializeSampleDb(window.__SQL_MODULE__);
+        else setupSql();
+      });
+      setupSql();
+
+      function readNotes() {
+        try {
+          const saved = localStorage.getItem(NOTE_KEY);
+          const parsed = saved ? JSON.parse(saved) : [];
+          return Array.isArray(parsed) ? parsed.filter((note) => note && typeof note.title === 'string' && typeof note.body === 'string') : [];
+        } catch (error) {
+          $('#notes-status').textContent = 'Saved notes could not be read. Browser storage may be disabled or contain invalid data.';
+          return [];
+        }
+      }
+      function writeNotes(notes) {
+        try {
+          localStorage.setItem(NOTE_KEY, JSON.stringify(notes));
+          return true;
+        } catch (error) {
+          $('#notes-status').textContent = 'Could not save notes. Check browser storage settings or available space.';
+          return false;
+        }
+      }
+      function renderNotes() {
+        const notes = readNotes();
+        $('#notes-count').textContent = `${notes.length} saved note${notes.length === 1 ? '' : 's'}`;
+        const list = $('#note-list');
+        list.replaceChildren();
+        if (notes.length === 0) {
+          const empty = document.createElement('div');
+          empty.className = 'result-empty';
+          empty.textContent = 'No saved notes yet.';
+          list.append(empty);
+          return;
+        }
+        notes.forEach((note, index) => {
+          const card = document.createElement('article');
+          card.className = 'note-card';
+          const top = document.createElement('div');
+          top.className = 'note-top';
+          const block = document.createElement('div');
+          const title = document.createElement('h4');
+          title.textContent = note.title;
+          const meta = document.createElement('div');
+          meta.className = 'note-meta';
+          const when = note.createdAt ? new Date(note.createdAt) : null;
+          const dateText = when && !Number.isNaN(when.getTime()) ? when.toLocaleString() : 'Date unavailable';
+          meta.textContent = `${note.category || 'Investigation'} · ${dateText}`;
+          block.append(title, meta);
+          const remove = document.createElement('button');
+          remove.type = 'button';
+          remove.className = 'note-delete';
+          remove.textContent = 'Delete';
+          remove.setAttribute('aria-label', `Delete note: ${note.title}`);
+          remove.addEventListener('click', () => {
+            const updated = readNotes();
+            updated.splice(index, 1);
+            if (writeNotes(updated)) {
+              $('#notes-status').textContent = 'Note deleted from this browser.';
+              renderNotes();
+            }
+          });
+          top.append(block, remove);
+          const body = document.createElement('p');
+          body.className = 'note-body';
+          body.textContent = note.body;
+          card.append(top, body);
+          list.append(card);
+        });
+      }
+      $('#note-form').addEventListener('submit', (event) => {
+        event.preventDefault();
+        const title = $('#note-title').value.trim();
+        const body = $('#note-content').value.trim();
+        if (!title || !body) return;
+        const notes = readNotes();
+        notes.unshift({ title, body, category: $('#note-category').value, createdAt: new Date().toISOString() });
+        if (writeNotes(notes.slice(0, 50))) {
+          $('#note-form').reset();
+          $('#notes-status').textContent = 'Saved locally in this browser. Do not store secrets here.';
+          renderNotes();
+        }
+      });
+      $('#clear-notes').addEventListener('click', () => {
+        if (!window.confirm('Delete all notes saved by this toolkit in this browser?')) return;
+        try {
+          localStorage.removeItem(NOTE_KEY);
+          $('#notes-status').textContent = 'All toolkit notes were removed from this browser.';
+          renderNotes();
+        } catch (error) {
+          $('#notes-status').textContent = 'Browser storage would not allow note deletion.';
+        }
+      });
+      renderNotes();
+
+      function setTheme(theme) {
+        const value = theme === 'dark' ? 'dark' : 'light';
+        document.documentElement.dataset.theme = value;
+        $('#theme-toggle').textContent = value === 'dark' ? 'Light mode' : 'Dark mode';
+        $('#theme-toggle').setAttribute('aria-pressed', value === 'dark' ? 'true' : 'false');
+        try { localStorage.setItem(THEME_KEY, value); } catch (_) { /* theme still works for this page load */ }
+      }
+      let initialTheme = 'light';
+      try { initialTheme = localStorage.getItem(THEME_KEY) || 'light'; } catch (_) { /* use default */ }
+      setTheme(initialTheme);
+      $('#theme-toggle').addEventListener('click', () => setTheme(document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'));
+
+      if (window.mermaid) {
+        try {
+          window.mermaid.initialize({ startOnLoad: false, securityLevel: 'strict', theme: document.documentElement.dataset.theme === 'dark' ? 'dark' : 'default' });
+          window.mermaid.run({ querySelector: '#workflow-diagram' }).catch(() => {
+            $('#workflow-diagram').textContent = 'The workflow diagram could not be rendered. Review the workflow summary and check CDN access.';
+          });
+        } catch (_) {
+          $('#workflow-diagram').textContent = 'The workflow diagram could not be rendered. Check CDN access.';
+        }
+      } else {
+        $('#workflow-diagram').textContent = 'Mermaid did not load. Check your network/CDN access; the diagnostic steps above remain available.';
+      }
+
+      // Motion is imported only for a small entrance effect. The app remains usable if it fails to load.
+      if (!window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        import('https://cdn.jsdelivr.net/npm/motion@14.6.0/+esm').then(({ animate }) => {
+          animate('.hero-title', { opacity: [0, 1], y: [12, 0] }, { duration: .45, ease: 'ease-out' });
+        }).catch(() => { /* optional enhancement */ });
+      }
+    })();
+  </script>
+</body>
+</html>
